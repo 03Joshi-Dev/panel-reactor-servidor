@@ -1,63 +1,63 @@
-# nombre del archivo: servidor.py
 
 from flask import Flask, request, jsonify
-import asyncio
-import websockets
+from flask_sock import Sock
 import json
-import threading
 import os
 
 app = Flask(__name__)
-connected_clients = set()
+sock = Sock(app)
 
-# Lógica para manejar clientes WebSocket
-async def register(websocket):
-    print("Nuevo cliente web conectado.")
-    connected_clients.add(websocket)
-    try:
-        await websocket.wait_closed()
-    finally:
-        print("Cliente web desconectado.")
-        connected_clients.remove(websocket)
+# Esta lista almacenará todas las conexiones WebSocket activas
+connected_clients = []
 
-async def broadcast_data(data):
-    if connected_clients:
-        message = json.dumps(data)
-        # Enviar a todos los clientes conectados
-        await asyncio.gather(*(client.send(message) for client in connected_clients))
-
-# Endpoint HTTP para recibir datos del Arduino (vía recolector.py)
+# Endpoint HTTP para que el recolector.py envíe los datos
 @app.route('/data', methods=['POST'])
 def receive_data():
     try:
         data = request.json
         print(f"Dato recibido: {data}")
-        # Llama a la función asíncrona para retransmitir los datos
-        asyncio.run(broadcast_data(data))
+        # Enviar los datos a todos los clientes web conectados
+        # Se crea una copia de la lista por si un cliente se desconecta mientras se envía
+        for client in list(connected_clients):
+            try:
+                client.send(json.dumps(data))
+            except Exception as e:
+                print(f"No se pudo enviar a un cliente (probablemente desconectado): {e}")
+                connected_clients.remove(client) # Limpiar cliente desconectado
         return jsonify({"status": "ok"}), 200
     except Exception as e:
-        print(f"Error recibiendo datos: {e}")
+        print(f"Error en /data: {e}")
         return jsonify({"status": "error"}), 400
-        
+
+# Endpoint WebSocket que se ejecuta cuando la página web se conecta
+# La librería flask_sock se encarga de la magia
+@sock.route('/')
+def websocket_connection(ws):
+    print("Nuevo cliente web conectado.")
+    connected_clients.append(ws)
+    try:
+        # Mantener la conexión viva esperando mensajes (aunque no hagamos nada con ellos)
+        while True:
+            # Esta línea espera a que el cliente envíe algo o se desconecte.
+            # Si se desconecta, lanzará una excepción y el bloque 'finally' se ejecutará.
+            ws.receive()
+    except Exception as e:
+        print(f"Cliente desconectado o error: {e}")
+    finally:
+        # Eliminar el cliente de la lista cuando la conexión se cierra
+        if ws in connected_clients:
+            connected_clients.remove(ws)
+        print("Un cliente se ha desconectado. Clientes activos:", len(connected_clients))
+
+# Ruta de prueba para ver si el servidor HTTP está funcionando
 @app.route('/')
 def index():
-    return "Servidor del reactor activo. El WebSocket está en el puerto 8765."
+    return "Servidor del reactor activo. El WebSocket está en la misma dirección."
 
-# Función para que el servidor WebSocket corra en un hilo separado
-def run_websocket_server():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    start_server = websockets.serve(register, "0.0.0.0", 8765)
-    loop.run_until_complete(start_server)
-    print("Servidor WebSocket escuchando en el puerto 8765")
-    loop.run_forever()
-
+# Esta parte no es necesaria para Render, pero la dejamos por si lo ejecutas localmente
 if __name__ == "__main__":
-    print("Iniciando servidor Flask y WebSocket...")
-    ws_thread = threading.Thread(target=run_websocket_server)
-    ws_thread.daemon = True
-    ws_thread.start()
-    
-    # Render usa la variable de entorno PORT, pero definimos 10000 como fallback
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5000))
+    print(f"Iniciando servidor en el puerto {port}...")
+    # Para pruebas locales, necesitarías un servidor como gunicorn.
+    # Pero para Render, el 'Start Command' se encargará de esto.
     app.run(host='0.0.0.0', port=port)
