@@ -14,21 +14,17 @@ from flask_cors import CORS
 
 # --- CONFIGURACIÓN DE LA APP ---
 app = Flask(__name__)
+sock = Sock(app)
 
-# ==============================================================================
-# CORRECCIÓN DEFINITIVA DE CORS:
-# Especificamos exactamente qué orígenes (páginas web) tienen permiso.
-# ==============================================================================
 cors = CORS(app, resources={
     r"/*": {
         "origins": [
-            "http://127.0.0.1:3000",            # Tu servidor de pruebas local
-            "https://03joshi-dev.github.io"    # Tu página en GitHub Pages
+            "http://127.0.0.1:3000",
+            "https://03joshi-dev.github.io"
         ]
     }
 })
 
-sock = Sock(app)
 connected_clients = []
 
 # --- LÓGICA DE ENVÍO DE CORREO ---
@@ -57,7 +53,7 @@ def send_email_with_attachment(subject, pdf_data_string):
         part.add_header("Content-Disposition", f"attachment; filename=checklist.pdf")
         message.attach(part)
     except Exception as e:
-        print(f"Error al procesar el PDF adjunto: {e}")
+        print(f"Error CRÍTICO al procesar el PDF adjunto: {e}")
         return False
 
     context = ssl.create_default_context()
@@ -68,26 +64,26 @@ def send_email_with_attachment(subject, pdf_data_string):
         print("Correo enviado exitosamente.")
         return True
     except Exception as e:
-        print(f"Error al enviar el correo: {e}")
+        print(f"Error CRÍTICO al enviar el correo: {e}")
         return False
 
 # --- ENDPOINTS (RUTAS) DEL SERVIDOR ---
 
 @app.route('/enviar-checklist', methods=['POST'])
 def handle_send_checklist():
+    # ... (esta función no cambia)
     data = request.json
     pdf_data = data.get('pdf_data')
     subject = data.get('subject')
-
     if not pdf_data or not subject:
         return jsonify({"status": "error", "message": "Faltan datos"}), 400
-
     success = send_email_with_attachment(subject, pdf_data)
-    
     if success:
         return jsonify({"status": "ok", "message": "Correo enviado."}), 200
     else:
         return jsonify({"status": "error", "message": "Fallo en el envío del correo."}), 500
+
+# ... (El resto de tu código de servidor.py sin cambios) ...
 
 @app.route('/data', methods=['POST'])
 def receive_data():
@@ -97,27 +93,20 @@ def receive_data():
         for client in list(connected_clients):
             try:
                 client.send(json.dumps(data))
-            except Exception as e:
-                print(f"Cliente desconectado detectado, eliminando. Error: {e}")
+            except:
                 connected_clients.remove(client)
         return jsonify({"status": "ok"}), 200
-    except Exception as e:
-        print(f"Error en /data: {e}")
+    except:
         return jsonify({"status": "error"}), 400
 
 @sock.route('/')
 def websocket_connection(ws):
-    print("Nuevo cliente web conectado.")
     connected_clients.append(ws)
     try:
-        while True:
-            ws.receive()
-    except:
-        pass
+        while True: ws.receive()
+    except: pass
     finally:
-        if ws in connected_clients:
-            connected_clients.remove(ws)
-        print("Un cliente se ha desconectado.")
+        if ws in connected_clients: connected_clients.remove(ws)
 
 @app.route('/')
 def index():
