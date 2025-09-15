@@ -29,27 +29,28 @@ connected_clients = []
 
 # --- LÓGICA DE ENVÍO DE CORREO ---
 def send_email_with_attachment(subject, pdf_data_string):
-    sender_email = os.environ.get('EMAIL_USER')
-    password = os.environ.get('EMAIL_PASS')
-    receiver_email = "jaimesjorge0320@gmail.com"
-
-    if not sender_email or not password:
-        print("ERROR: Las variables de entorno EMAIL_USER o EMAIL_PASS no están configuradas.")
-        return False
-
-    message = MIMEMultipart("alternative")
-    message["Subject"] = subject
-    message["From"] = sender_email
-    message["To"] = receiver_email
-    message.attach(MIMEText("Checklist del reactor adjunto en formato PDF.", "plain"))
-
     try:
-        header, encoded = pdf_data_string.split(",", 1)
+        print("Paso 1: Cargando credenciales de entorno...")
+        sender_email = os.environ.get('EMAIL_USER')
+        password = os.environ.get('EMAIL_PASS')
+        receiver_email = "jaimesjorge0320@gmail.com"
 
+        if not sender_email or not password:
+            print("ERROR FATAL: No se encontraron las variables de entorno EMAIL_USER o EMAIL_PASS.")
+            return False
+
+        print("Paso 2: Creando el cuerpo del mensaje...")
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = sender_email
+        message["To"] = receiver_email
+        message.attach(MIMEText("Checklist del reactor adjunto en formato PDF.", "plain"))
+
+        print("Paso 3: Procesando el archivo PDF adjunto (Base64)...")
+        header, encoded = pdf_data_string.split(",", 1)
         missing_padding = len(encoded) % 4
         if missing_padding:
             encoded += '=' * (4 - missing_padding)
-        
         pdf_data = base64.b64decode(encoded)
         
         part = MIMEBase("application", "octet-stream")
@@ -57,19 +58,27 @@ def send_email_with_attachment(subject, pdf_data_string):
         encoders.encode_base64(part)
         part.add_header("Content-Disposition", f"attachment; filename=checklist.pdf")
         message.attach(part)
-    except Exception as e:
-        print(f"Error CRÍTICO al procesar el PDF adjunto: {e}")
-        return False
+        print("Paso 3 completado. El PDF se ha procesado y adjuntado.")
 
-    context = ssl.create_default_context()
-    try:
+        print("Paso 4: Conectando con el servidor de Gmail (SMTP)...")
+        context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            print("Paso 4.1: Conectado a SMTP. Iniciando sesión...")
             server.login(sender_email, password)
+            print("Paso 4.2: Sesión iniciada. Enviando correo...")
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print("Correo enviado exitosamente.")
+        
+        print("Paso 5: ¡Correo enviado exitosamente!")
         return True
+
     except Exception as e:
-        print(f"Error CRÍTICO al enviar el correo: {e}")
+        import traceback
+        print("!!!!!!!! ERROR CRÍTICO DURANTE EL ENVÍO DE CORREO !!!!!!!!")
+        print(f"Tipo de error: {type(e).__name__}")
+        print(f"Mensaje de error: {e}")
+        print("Traceback completo:")
+        traceback.print_exc()
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         return False
 
 # --- ENDPOINTS (RUTAS) DEL SERVIDOR ---
@@ -91,7 +100,6 @@ def handle_send_checklist():
 def receive_data():
     try:
         data = request.json
-        print(f"Dato recibido: {data}")
         for client in list(connected_clients):
             try:
                 client.send(json.dumps(data))
