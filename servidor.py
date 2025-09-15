@@ -1,5 +1,3 @@
-# nombre del archivo: servidor.py (Versión final con WebSocket estable y envío de correo)
-
 import os
 import json
 import smtplib
@@ -12,10 +10,12 @@ import base64
 
 from flask import Flask, request, jsonify
 from flask_sock import Sock
+from flask_cors import CORS # <--- 1. IMPORTAR LA LIBRERÍA
 
 # --- CONFIGURACIÓN DE LA APP ---
 app = Flask(__name__)
 sock = Sock(app)
+CORS(app)
 
 # Almacenará las conexiones WebSocket activas
 connected_clients = []
