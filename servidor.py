@@ -31,8 +31,8 @@ connected_clients = []
 def send_email_with_attachment(subject, pdf_data_string):
     try:
         print("Paso 1: Cargando credenciales de entorno...")
-        sender_email = os.environ.get('EMAIL_USER')
-        password = os.environ.get('EMAIL_PASS')
+        sender_email = os.environ.get('EMAIL_USER', '').strip()
+        password = os.environ.get('EMAIL_PASS', '').strip()
         receiver_email = "jaimesjorge0320@gmail.com"
 
         if not sender_email or not password:
@@ -125,3 +125,4 @@ def index():
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
