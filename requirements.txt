@@ -2,3 +2,4 @@ flask
 websockets
 requests
 flask_sock
+Flask-Cors
