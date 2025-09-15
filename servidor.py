@@ -45,6 +45,11 @@ def send_email_with_attachment(subject, pdf_data_string):
 
     try:
         header, encoded = pdf_data_string.split(",", 1)
+
+        missing_padding = len(encoded) % 4
+        if missing_padding:
+            encoded += '=' * (4 - missing_padding)
+        
         pdf_data = base64.b64decode(encoded)
         
         part = MIMEBase("application", "octet-stream")
@@ -67,7 +72,7 @@ def send_email_with_attachment(subject, pdf_data_string):
         print(f"Error CRÍTICO al enviar el correo: {e}")
         return False
 
-# --- ENDPOINTS DEL SERVIDOR ---
+# --- ENDPOINTS (RUTAS) DEL SERVIDOR ---
 
 @app.route('/enviar-checklist', methods=['POST'])
 def handle_send_checklist():
