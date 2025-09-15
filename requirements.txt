@@ -1,5 +1,4 @@
-# nombre del archivo: requirements.txt
-
 flask
 websockets
 requests
+flask_sock
