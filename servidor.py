@@ -10,14 +10,25 @@ import base64
 
 from flask import Flask, request, jsonify
 from flask_sock import Sock
-from flask_cors import CORS # <--- 1. IMPORTAR LA LIBRERÍA
+from flask_cors import CORS
 
 # --- CONFIGURACIÓN DE LA APP ---
 app = Flask(__name__)
-sock = Sock(app)
-CORS(app)
 
-# Almacenará las conexiones WebSocket activas
+# ==============================================================================
+# CORRECCIÓN DEFINITIVA DE CORS:
+# Especificamos exactamente qué orígenes (páginas web) tienen permiso.
+# ==============================================================================
+cors = CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://127.0.0.1:3000",            # Tu servidor de pruebas local
+            "https://03joshi-dev.github.io"    # Tu página en GitHub Pages
+        ]
+    }
+})
+
+sock = Sock(app)
 connected_clients = []
 
 # --- LÓGICA DE ENVÍO DE CORREO ---
@@ -62,7 +73,6 @@ def send_email_with_attachment(subject, pdf_data_string):
 
 # --- ENDPOINTS (RUTAS) DEL SERVIDOR ---
 
-# NUEVO ENDPOINT PARA RECIBIR Y ENVIAR EL CHECKLIST
 @app.route('/enviar-checklist', methods=['POST'])
 def handle_send_checklist():
     data = request.json
@@ -70,16 +80,15 @@ def handle_send_checklist():
     subject = data.get('subject')
 
     if not pdf_data or not subject:
-        return jsonify({"status": "error", "message": "Faltan datos en la petición"}), 400
+        return jsonify({"status": "error", "message": "Faltan datos"}), 400
 
     success = send_email_with_attachment(subject, pdf_data)
     
     if success:
         return jsonify({"status": "ok", "message": "Correo enviado."}), 200
     else:
-        return jsonify({"status": "error", "message": "Fallo en el servidor al enviar el correo."}), 500
+        return jsonify({"status": "error", "message": "Fallo en el envío del correo."}), 500
 
-# ENDPOINT PARA RECIBIR DATOS DEL REACTOR
 @app.route('/data', methods=['POST'])
 def receive_data():
     try:
@@ -93,10 +102,9 @@ def receive_data():
                 connected_clients.remove(client)
         return jsonify({"status": "ok"}), 200
     except Exception as e:
-        print(f"Error procesando la petición en /data: {e}")
+        print(f"Error en /data: {e}")
         return jsonify({"status": "error"}), 400
 
-# ENDPOINT WEBSOCKET PARA LA PÁGINA WEB
 @sock.route('/')
 def websocket_connection(ws):
     print("Nuevo cliente web conectado.")
@@ -104,14 +112,13 @@ def websocket_connection(ws):
     try:
         while True:
             ws.receive()
-    except Exception as e:
-        print(f"Cliente desconectado o con error: {e}")
+    except:
+        pass
     finally:
         if ws in connected_clients:
             connected_clients.remove(ws)
-        print(f"Un cliente se ha desconectado. Clientes activos: {len(connected_clients)}")
+        print("Un cliente se ha desconectado.")
 
-# RUTA DE PRUEBA
 @app.route('/')
 def index():
     return "Servidor del reactor activo."
