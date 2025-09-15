@@ -67,11 +67,10 @@ def send_email_with_attachment(subject, pdf_data_string):
         print(f"Error CRÍTICO al enviar el correo: {e}")
         return False
 
-# --- ENDPOINTS (RUTAS) DEL SERVIDOR ---
+# --- ENDPOINTS DEL SERVIDOR ---
 
 @app.route('/enviar-checklist', methods=['POST'])
 def handle_send_checklist():
-    # ... (esta función no cambia)
     data = request.json
     pdf_data = data.get('pdf_data')
     subject = data.get('subject')
@@ -82,8 +81,6 @@ def handle_send_checklist():
         return jsonify({"status": "ok", "message": "Correo enviado."}), 200
     else:
         return jsonify({"status": "error", "message": "Fallo en el envío del correo."}), 500
-
-# ... (El resto de tu código de servidor.py sin cambios) ...
 
 @app.route('/data', methods=['POST'])
 def receive_data():
